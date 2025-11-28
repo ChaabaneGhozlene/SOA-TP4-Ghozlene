@@ -1,0 +1,141 @@
+version: '3.9'
+
+networks:
+  msx-net:
+    driver: bridge
+
+services:
+
+  # 1️⃣ Eureka Server
+  eureka-server:
+    build: ../Chaabane_Ghozlene_TP4_3IDL2_Eureka
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - msx-net
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      retries: 10
+      timeout: 5s
+    restart: unless-stopped
+
+  # 2️⃣ Gateway
+  gateway:
+    build: ../ChaabaneGhozlene_TP4Gateway_3idl2
+    container_name: gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - eureka-server
+    networks:
+      - msx-net
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    restart: on-failure
+
+  msx1:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2
+    container_name: msx-order
+    ports:
+      - "8082:8080"
+    depends_on:
+      - mysql
+      - eureka-server
+      - rabbitmq
+    networks:
+      - msx-net
+    environment:
+      SPRING_APPLICATION_NAME: msx-order
+      SPRING_PROFILES_ACTIVE: docker
+ 
+
+  
+
+  # 6️⃣ Catalogue Service
+  catalogue-service:
+    build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceCatalogue
+    container_name: catalogue-service
+    ports:
+      - "8083:8080"
+    depends_on:
+      - eureka-server
+      - mysql
+    networks:
+      - msx-net
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/produits
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS=10
+      - EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS=30
+    restart: on-failure
+
+  # 7️⃣ Notification Service
+  notification-service:
+    build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceNotification
+    container_name: notification-service
+    ports:
+      - "8084:8080"
+    depends_on:
+      - eureka-server
+      - rabbitmq
+    networks:
+      - msx-net
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS=10
+      - EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS=30
+    restart: on-failure
+
+  # 8️⃣ RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    networks:
+      - msx-net
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    restart: on-failure
+
+  # 9️⃣ MySQL
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - msx-net
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin
+      - MYSQL_DATABASE=produits
+    restart: on-failure
+
+  # 🔟 MongoDB
+  mongodb:
+    image: mongo:6
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - msx-net
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    restart: on-failure
